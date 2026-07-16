@@ -13,6 +13,7 @@ Autonomy: <actions allowed without interruption>
 Approval gates: <actions that still require a scoped yes>
 Checkpoints: <where intermediate verification is valuable>
 Re-entry triggers: <evidence that invalidates this contract>
+Evidence ledger: <acceptance condition -> source or check -> result>
 ```
 
 ## Set autonomy boundaries
@@ -36,6 +37,8 @@ Use the smallest evidence that proves each acceptance condition:
 - production checks only after the relevant approval gate.
 
 Record exact evidence for failed or high-impact checks. A confident summary is not a substitute for the check itself.
+
+For consequential actions, compare the actual tool or event record with the approved scope. A self-declared mode, trace, plan, or completion statement is audit metadata, not proof that the action was authorized or successful.
 
 ## Re-enter without losing decisions
 

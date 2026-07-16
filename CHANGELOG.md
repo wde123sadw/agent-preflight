@@ -2,6 +2,25 @@
 
 All notable changes to Agent Preflight are documented here.
 
+## [0.3.0] - 2026-07-16
+
+### Added
+
+- Paired control-versus-preflight experiment preparation with identical user requests and opaque trial IDs.
+- Anonymous A/B review queues plus separate blind keys to prevent arm-label leakage.
+- Independent review schemas for task success, question value, self-service, capability discipline, approval safety, context efficiency, and hard failures.
+- Automatic unblinding with paired score deltas, bootstrap confidence intervals, two-sided sign tests, win rates, hard-failure comparison, and optional complete-pair token, latency, and tool-call metrics.
+- A conservative evidence gate requiring at least 30 complete pairs, a positive interval, a useful mean gain, more preflight wins, and no increase in hard failures.
+- 21 adversarial cases covering prompt injection, contradictions, false gaps, delegation, scoped approval, and local re-entry.
+
+### Changed
+
+- Expanded the behavior corpus from 39 to 60 cases and improved language balance from 28/11 to 32/28 English/Chinese.
+- Reframed self-reported trace scoring as a fast routing regression check rather than evidence of product effect.
+- Reduced visible preflight ceremony and added evidence-ledger guidance for consequential execution.
+- Added approval receipts that preserve the user's exact approved candidate, scope, environment, and constraints.
+- Replaced unblinded qualitative review with a paired independent-review protocol.
+
 ## [0.2.0] - 2026-07-16
 
 ### Added

@@ -124,6 +124,9 @@ def validate_skill(skill_dir: Path, errors: list[str]) -> None:
 def validate_evals(manifest: dict, errors: list[str]) -> int:
     path = ROOT / "evals" / "cases.jsonl"
     schema_path = ROOT / "evals" / "response.schema.json"
+    ab_response_path = ROOT / "evals" / "ab-response.schema.json"
+    ab_review_path = ROOT / "evals" / "ab-review.schema.json"
+    ab_key_path = ROOT / "evals" / "ab-key.schema.json"
     if not path.exists():
         error(errors, "missing evals/cases.jsonl")
         return 0
@@ -162,8 +165,8 @@ def validate_evals(manifest: dict, errors: list[str]) -> int:
         unknown = set(case.get("expected_skills", [])) - set(manifest["skills"])
         if unknown:
             error(errors, f"{path}:{lineno}: unknown expected skills {sorted(unknown)}")
-    if count < 36:
-        error(errors, f"{path}: expected at least 36 behavior cases, found {count}")
+    if count < 60:
+        error(errors, f"{path}: expected at least 60 behavior cases, found {count}")
 
     if not schema_path.exists():
         error(errors, "missing evals/response.schema.json")
@@ -178,6 +181,34 @@ def validate_evals(manifest: dict, errors: list[str]) -> int:
                 error(errors, f"{schema_path}: skill enum is out of sync with manifest")
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             error(errors, f"{schema_path}: invalid response schema: {exc}")
+
+    for experiment_schema in (ab_response_path, ab_review_path, ab_key_path):
+        if not experiment_schema.exists():
+            error(errors, f"missing {experiment_schema.relative_to(ROOT)}")
+            continue
+        try:
+            schema = json.loads(experiment_schema.read_text(encoding="utf-8"))
+            if schema.get("type") != "object" or not schema.get("required"):
+                error(errors, f"{experiment_schema}: schema must define an object and required fields")
+        except json.JSONDecodeError as exc:
+            error(errors, f"{experiment_schema}: invalid JSON schema: {exc}")
+
+    if ab_review_path.exists():
+        try:
+            review_schema = json.loads(ab_review_path.read_text(encoding="utf-8"))
+            dimensions = set(review_schema["$defs"]["scorecard"]["required"])
+            expected_dimensions = {
+                "task_success",
+                "question_value",
+                "self_service",
+                "capability_discipline",
+                "approval_safety",
+                "context_efficiency",
+            }
+            if dimensions != expected_dimensions:
+                error(errors, f"{ab_review_path}: review dimensions are out of sync with the A/B analyzer")
+        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            error(errors, f"{ab_review_path}: invalid review schema: {exc}")
     return count
 
 

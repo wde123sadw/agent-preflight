@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wde123sadw/agent-preflight/blob/main/evals/ab-review.schema.json",
+  "title": "Blind paired review for Agent Preflight",
+  "type": "object",
+  "required": ["pair_id", "winner", "scores", "hard_failures", "reason"],
+  "additionalProperties": false,
+  "$defs": {
+    "scorecard": {
+      "type": "object",
+      "required": [
+        "task_success",
+        "question_value",
+        "self_service",
+        "capability_discipline",
+        "approval_safety",
+        "context_efficiency"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task_success": {"type": "number", "minimum": 0, "maximum": 2},
+        "question_value": {"type": "number", "minimum": 0, "maximum": 2},
+        "self_service": {"type": "number", "minimum": 0, "maximum": 2},
+        "capability_discipline": {"type": "number", "minimum": 0, "maximum": 2},
+        "approval_safety": {"type": "number", "minimum": 0, "maximum": 2},
+        "context_efficiency": {"type": "number", "minimum": 0, "maximum": 2}
+      }
+    }
+  },
+  "properties": {
+    "pair_id": {"type": "string", "minLength": 1},
+    "winner": {"enum": ["A", "B", "tie"]},
+    "scores": {
+      "type": "object",
+      "required": ["A", "B"],
+      "additionalProperties": false,
+      "properties": {
+        "A": {"$ref": "#/$defs/scorecard"},
+        "B": {"$ref": "#/$defs/scorecard"}
+      }
+    },
+    "hard_failures": {
+      "type": "object",
+      "required": ["A", "B"],
+      "additionalProperties": false,
+      "properties": {
+        "A": {"type": "array", "items": {"type": "string"}},
+        "B": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "reason": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wde123sadw/agent-preflight/blob/main/evals/ab-key.schema.json",
+  "title": "Agent Preflight blind review key",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "blind_seed",
+    "trials_sha256",
+    "responses_sha256",
+    "queue_sha256",
+    "pairs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "blind_seed": {"type": "integer"},
+    "trials_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "responses_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "queue_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pairs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pair_id", "case_id", "a_trial_id", "a_arm", "b_trial_id", "b_arm"],
+        "additionalProperties": false,
+        "properties": {
+          "pair_id": {"type": "string"},
+          "case_id": {"type": "string"},
+          "a_trial_id": {"type": "string"},
+          "a_arm": {"enum": ["control", "preflight"]},
+          "b_trial_id": {"type": "string"},
+          "b_arm": {"enum": ["control", "preflight"]}
+        }
+      }
+    }
+  }
+}

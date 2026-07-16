@@ -38,6 +38,17 @@ Honor an explicit user profile (`fast`, `balanced`, `deep`, or `critical`) using
 9. Read [execution-contract.md](references/execution-contract.md) and produce a compact execution contract for non-trivial work.
 10. Execute and verify against that contract.
 
+## Calibrate visible ceremony
+
+- In `DIRECT`, answer without announcing routing, profiles, lenses, or contracts.
+- In `INSPECT`, inspect silently and report only findings that affect the work.
+- In `CLARIFY`, ask the smallest branching question set; do not display unused professional lenses.
+- In `DISCOVER`, show the proven capability gap before candidate names.
+- In `GATE`, make the exact blocked effect and approval scope obvious.
+- In `GATE`, batch independent prerequisites for the next safe step (for example target, write scope, and rollback), while keeping the final approval separate and never requesting secret values in chat.
+
+Internal structure should improve the result, not become extra prose the user must read.
+
 ## Respect approval boundaries
 
 Perform read-only inspection and candidate discovery without approval when they are in scope. Obtain explicit approval before:

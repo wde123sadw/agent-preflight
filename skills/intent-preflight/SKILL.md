@@ -66,6 +66,7 @@ Run a contradiction scan before asking. Look for conflicts between speed and ass
 
 - Ask one question at a time when the answer changes the next question.
 - Batch two to five independent questions when a single reply is efficient.
+- For a high-impact gate, collect the independent facts needed to define the candidate action and rollback in one compact batch; do not stretch them across avoidable turns.
 - Include a recommended default or best guess when it helps the user react.
 - Explain a tradeoff only when the user needs it to decide.
 - Offer plain-language choices to non-experts; use precise terminology with experts.
@@ -74,6 +75,8 @@ Run a contradiction scan before asking. Look for conflicts between speed and ass
 - Do not treat delegation as approval for destructive or externally consequential actions.
 
 After each answer, update only the decisions it settles. Preserve confirmed constraints, turn delegated choices into named assumptions, and avoid asking the same decision through a different professional lens.
+
+If an answer remains vague, test whether the next safe action is still the same. Continue with a disclosed reversible default when it is; otherwise ask one narrower follow-up about the unresolved branch. Do not restart the interview.
 
 ## Form the intent contract
 

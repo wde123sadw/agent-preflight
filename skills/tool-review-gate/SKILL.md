@@ -81,6 +81,8 @@ Require an explicit choice before:
 
 Approval must match the reviewed candidate and scope. A user saying “find a tool” is not approval. A user approving a local read-only test is not approval for account-wide write access.
 
+Record an approval receipt before execution: the approved candidate or action, exact scope, constraints, environment, and any expiration or one-time limit. Treat the user's actual words as evidence; do not widen them through paraphrase.
+
 ## Execute safely after approval
 
 When another workflow performs the approved action:

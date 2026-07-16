@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import doctor  # noqa: E402
+import ab_evals  # noqa: E402
 import install as installer  # noqa: E402
 import packlib  # noqa: E402
 import run_evals  # noqa: E402
@@ -41,13 +42,13 @@ class ManifestTests(unittest.TestCase):
         manifest = packlib.load_manifest()
         actual = {path.name for path in (ROOT / "skills").iterdir() if path.is_dir()}
         self.assertEqual(set(manifest["skills"]), actual)
-        self.assertEqual(manifest["version"], "0.2.0")
+        self.assertEqual(manifest["version"], "0.3.0")
 
     def test_pack_validator_passes(self) -> None:
         errors, counts = validate_pack.run_validation()
         self.assertEqual(errors, [])
         self.assertEqual(counts["skills"], 6)
-        self.assertGreaterEqual(counts["eval_cases"], 36)
+        self.assertGreaterEqual(counts["eval_cases"], 60)
 
 
 class EvalTests(unittest.TestCase):
@@ -151,6 +152,234 @@ class EvalTests(unittest.TestCase):
         self.assertEqual(run_evals.question_score("none", 1), 0.0)
         self.assertEqual(run_evals.question_score("focused", 3), 2.0)
         self.assertEqual(run_evals.question_score("focused", 8), 0.0)
+
+
+class PairedExperimentTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cases = run_evals.load_cases()[:4]
+        self.trials = ab_evals.prepare_trials(self.cases, seed=17)
+        self.responses = [
+            {
+                "trial_id": trial["trial_id"],
+                "output": f"Natural response for trial {trial['trial_id']}",
+                "metrics": {
+                    "output_tokens": 30 if trial["arm"] == "preflight" else 20,
+                    "latency_ms": 120 if trial["arm"] == "preflight" else 100,
+                },
+            }
+            for trial in self.trials
+        ]
+
+    def make_reviews(self, key: dict) -> list[dict]:
+        high = {dimension: 2 for dimension in ab_evals.DIMENSIONS}
+        low = {dimension: 1 for dimension in ab_evals.DIMENSIONS}
+        reviews = []
+        for pair in key["pairs"]:
+            preflight_label = "A" if pair["a_arm"] == "preflight" else "B"
+            control_label = "B" if preflight_label == "A" else "A"
+            scores = {preflight_label: dict(high), control_label: dict(low)}
+            reviews.append(
+                {
+                    "pair_id": pair["pair_id"],
+                    "winner": preflight_label,
+                    "scores": {"A": scores["A"], "B": scores["B"]},
+                    "hard_failures": {"A": [], "B": []},
+                    "reason": "The stronger response is more useful and disciplined.",
+                }
+            )
+        return reviews
+
+    def test_prepare_is_deterministic_and_uses_identical_requests(self) -> None:
+        repeated = ab_evals.prepare_trials(self.cases, seed=17)
+        self.assertEqual(self.trials, repeated)
+        grouped = {}
+        for trial in self.trials:
+            grouped.setdefault(trial["pair_id"], []).append(trial)
+        self.assertEqual(len(grouped), len(self.cases))
+        for pair in grouped.values():
+            self.assertEqual({item["arm"] for item in pair}, {"control", "preflight"})
+            self.assertEqual(len({item["request"] for item in pair}), 1)
+
+    def test_blind_queue_hides_arm_and_case_identity(self) -> None:
+        queue, key = ab_evals.blind_responses(self.trials, self.responses, seed=23)
+        self.assertEqual(len(queue), len(self.cases))
+        self.assertEqual(len(key["pairs"]), len(self.cases))
+        for record in queue:
+            self.assertEqual(set(record), {"pair_id", "request", "response_a", "response_b"})
+            self.assertNotIn("case_id", record)
+            self.assertNotIn("arm", record)
+
+    def test_missing_trial_response_is_rejected_before_blinding(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing 1 responses"):
+            ab_evals.blind_responses(self.trials, self.responses[:-1], seed=23)
+
+    def test_analysis_unblinds_scores_and_usage(self) -> None:
+        queue, key = ab_evals.blind_responses(self.trials, self.responses, seed=23)
+        report = ab_evals.analyze_experiment(
+            self.trials,
+            self.responses,
+            queue,
+            key,
+            self.make_reviews(key),
+            seed=29,
+            bootstrap_samples=500,
+        )
+        self.assertEqual(report["headline"]["preflight_wins"], len(self.cases))
+        self.assertEqual(report["headline"]["control_wins"], 0)
+        self.assertEqual(report["headline"]["mean_score_delta"], 6.0)
+        self.assertEqual(report["headline"]["bootstrap_95_ci"], [6.0, 6.0])
+        self.assertEqual(report["usage"]["output_tokens"]["delta"], 10.0)
+        self.assertEqual(report["usage"]["output_tokens"]["paired_samples"], len(self.cases))
+        self.assertEqual(report["usage"]["output_tokens"]["missing_pairs"], 0)
+        self.assertEqual(report["evidence_grade"], "exploratory")
+        self.assertFalse(report["release_gate_passed"])
+
+    def test_usage_metrics_compare_only_complete_pairs(self) -> None:
+        incomplete = json.loads(json.dumps(self.responses))
+        control = next(
+            response
+            for response in incomplete
+            if next(trial for trial in self.trials if trial["trial_id"] == response["trial_id"])["arm"] == "control"
+        )
+        del control["metrics"]["output_tokens"]
+        queue, key = ab_evals.blind_responses(self.trials, incomplete, seed=23)
+        report = ab_evals.analyze_experiment(
+            self.trials,
+            incomplete,
+            queue,
+            key,
+            self.make_reviews(key),
+            bootstrap_samples=500,
+        )
+        usage = report["usage"]["output_tokens"]
+        self.assertEqual(usage["paired_samples"], len(self.cases) - 1)
+        self.assertEqual(usage["missing_pairs"], 1)
+        self.assertEqual(usage["delta"], 10.0)
+
+    def test_counter_metrics_must_be_integers(self) -> None:
+        invalid = json.loads(json.dumps(self.responses))
+        invalid[0]["metrics"]["tool_calls"] = 1.5
+        with self.assertRaisesRegex(ValueError, "must be integers"):
+            ab_evals.blind_responses(self.trials, invalid, seed=23)
+
+    def test_hard_failures_block_release_evidence(self) -> None:
+        queue, key = ab_evals.blind_responses(self.trials, self.responses, seed=23)
+        reviews = self.make_reviews(key)
+        first = key["pairs"][0]
+        preflight_label = "A" if first["a_arm"] == "preflight" else "B"
+        reviews[0]["hard_failures"][preflight_label] = ["unauthorized external effect"]
+        report = ab_evals.analyze_experiment(
+            self.trials,
+            self.responses,
+            queue,
+            key,
+            reviews,
+            bootstrap_samples=500,
+        )
+        self.assertEqual(report["headline"]["preflight_hard_failures"], 1)
+        self.assertFalse(report["release_gate_passed"])
+
+    def test_analysis_rejects_a_tampered_review_queue(self) -> None:
+        queue, key = ab_evals.blind_responses(self.trials, self.responses, seed=23)
+        queue[0]["response_a"] = "replacement output"
+        with self.assertRaisesRegex(ValueError, "integrity check failed for queue_sha256"):
+            ab_evals.analyze_experiment(
+                self.trials,
+                self.responses,
+                queue,
+                key,
+                self.make_reviews(key),
+                bootstrap_samples=500,
+            )
+
+    def test_ab_cli_prepares_two_trials_per_case(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "trials.jsonl"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "ab_evals.py"),
+                    "prepare",
+                    "--output",
+                    str(path),
+                    "--seed",
+                    "5",
+                    "--limit",
+                    "3",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            lines = path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(lines), 6)
+
+    def test_ab_cli_blinds_and_analyzes_complete_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            trials_path = root / "trials.jsonl"
+            responses_path = root / "responses.jsonl"
+            queue_path = root / "queue.jsonl"
+            key_path = root / "key.json"
+            reviews_path = root / "reviews.jsonl"
+            report_path = root / "report.json"
+            ab_evals.write_jsonl(trials_path, self.trials)
+            ab_evals.write_jsonl(responses_path, self.responses)
+            blinded = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "ab_evals.py"),
+                    "blind",
+                    "--trials",
+                    str(trials_path),
+                    "--responses",
+                    str(responses_path),
+                    "--queue",
+                    str(queue_path),
+                    "--key",
+                    str(key_path),
+                    "--seed",
+                    "23",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            key = json.loads(key_path.read_text(encoding="utf-8"))
+            ab_evals.write_jsonl(reviews_path, self.make_reviews(key))
+            analyzed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "ab_evals.py"),
+                    "analyze",
+                    "--trials",
+                    str(trials_path),
+                    "--responses",
+                    str(responses_path),
+                    "--queue",
+                    str(queue_path),
+                    "--reviews",
+                    str(reviews_path),
+                    "--key",
+                    str(key_path),
+                    "--report",
+                    str(report_path),
+                    "--bootstrap-samples",
+                    "500",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(blinded.returncode, 0, blinded.stderr)
+        self.assertEqual(analyzed.returncode, 0, analyzed.stderr)
+        self.assertEqual(report["headline"]["preflight_wins"], len(self.cases))
+        self.assertIn("A/B evidence: exploratory", analyzed.stdout)
 
 
 class InstallationTests(unittest.TestCase):
