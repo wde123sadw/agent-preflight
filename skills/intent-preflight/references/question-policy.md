@@ -14,6 +14,12 @@ Use these as ceilings, not quotas:
 
 Do not dump a complete discovery questionnaire into one message.
 
+## Apply the branch test
+
+Ask a candidate question only when at least two plausible answers lead to materially different scope, behavior, architecture, risk controls, cost, or acceptance. If both answers produce the same next action, inspect, assume, or proceed instead.
+
+Prefer a small runnable prototype when it will produce better evidence than a speculative questionnaire and can be created reversibly within the user's scope.
+
 ## Ask about decisions, not categories
 
 Weak: “What are your technical requirements?”

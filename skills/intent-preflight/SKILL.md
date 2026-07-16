@@ -28,6 +28,17 @@ Estimate each dimension as low, medium, or high:
 
 Use no questions when all material dimensions are low and evidence is sufficient. Increase depth only when the expected cost of a wrong assumption exceeds the cost of asking.
 
+## Classify uncertainty
+
+Before generating questions, place each important unknown in one lane:
+
+- **Discover** — inspect the workspace or an authoritative source without interrupting the user.
+- **Assume** — choose a conventional, reversible default and disclose it in the contract.
+- **Ask** — request a user-owned decision because different answers materially branch the work.
+- **Gate** — obtain explicit approval immediately before a consequential action.
+
+Do not ask a discoverable question or disguise an approval gate as a preference question.
+
 ## Select lenses
 
 Read [lenses.md](references/lenses.md) and choose only lenses relevant to the task. Typical lenses include user, product, engineering, design, testing, security/privacy, operations, data, business, accessibility, and domain expertise.
@@ -49,6 +60,8 @@ question value = decision impact × uncertainty × risk × irreversibility
 
 Discard questions with low or negative value.
 
+Run a contradiction scan before asking. Look for conflicts between speed and assurance, scope and acceptance, stated users and actual operators, requested tools and required capabilities, or requested actions and approval boundaries. Ask about a conflict only when evidence cannot resolve it.
+
 ## Ask efficiently
 
 - Ask one question at a time when the answer changes the next question.
@@ -59,6 +72,8 @@ Discard questions with low or negative value.
 - Stop when remaining uncertainty can be handled through reversible assumptions.
 - If the user delegates, state the chosen assumptions and continue.
 - Do not treat delegation as approval for destructive or externally consequential actions.
+
+After each answer, update only the decisions it settles. Preserve confirmed constraints, turn delegated choices into named assumptions, and avoid asking the same decision through a different professional lens.
 
 ## Form the intent contract
 
@@ -73,6 +88,7 @@ Out of scope: <explicit exclusions>
 Constraints: <technical, time, cost, policy, brand, compatibility>
 Acceptance: <evidence that proves completion>
 Assumptions: <delegated or reversible defaults>
+Autonomy: <what may proceed without another interruption>
 Open gates: <decisions or approvals still required>
 ```
 

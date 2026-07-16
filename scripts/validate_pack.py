@@ -3,22 +3,18 @@
 
 from __future__ import annotations
 
+import argparse
+import ast
 import json
 import re
 import sys
 from pathlib import Path
 
+from packlib import MANIFEST, ROOT, load_manifest
 
-ROOT = Path(__file__).resolve().parents[1]
+
 SKILLS = ROOT / "skills"
-EXPECTED = {
-    "using-agent-preflight",
-    "intent-preflight",
-    "capability-gap-analysis",
-    "tool-discovery",
-    "tool-review-gate",
-    "context-budget",
-}
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
 
@@ -46,14 +42,33 @@ def parse_frontmatter(text: str, path: Path, errors: list[str]) -> dict[str, str
     return fields
 
 
-def validate_links(path: Path, text: str, errors: list[str]) -> None:
+def validate_links(path: Path, text: str, errors: list[str]) -> set[Path]:
+    linked: set[Path] = set()
     for target in LINK_RE.findall(text):
         clean = target.strip().split("#", 1)[0]
         if not clean or "://" in clean or clean.startswith("mailto:"):
             continue
         resolved = (path.parent / clean).resolve()
+        linked.add(resolved)
         if not resolved.exists():
             error(errors, f"{path}: broken local link {target!r}")
+    return linked
+
+
+def validate_manifest(manifest: dict, errors: list[str]) -> None:
+    if manifest.get("schema_version") != 1:
+        error(errors, f"{MANIFEST}: unsupported schema_version")
+    if not SEMVER_RE.fullmatch(str(manifest.get("version", ""))):
+        error(errors, f"{MANIFEST}: version must be semantic versioning")
+    if not re.fullmatch(r"\d+\.\d+", str(manifest.get("minimum_python", ""))):
+        error(errors, f"{MANIFEST}: minimum_python must use major.minor format")
+    if set(manifest.get("modes", [])) != {"DIRECT", "INSPECT", "CLARIFY", "DISCOVER", "GATE"}:
+        error(errors, f"{MANIFEST}: mode set does not match the routing protocol")
+    if set(manifest.get("profiles", [])) != {"fast", "balanced", "deep", "critical"}:
+        error(errors, f"{MANIFEST}: profile set does not match the routing protocol")
+    for readme in (ROOT / "README.md", ROOT / "README.zh-CN.md"):
+        if readme.exists() and f"v{manifest['version']}" not in readme.read_text(encoding="utf-8"):
+            error(errors, f"{readme}: status does not mention v{manifest['version']}")
 
 
 def validate_skill(skill_dir: Path, errors: list[str]) -> None:
@@ -76,9 +91,10 @@ def validate_skill(skill_dir: Path, errors: list[str]) -> None:
         error(errors, f"{skill_md}: unresolved TODO")
     if len(text.splitlines()) > 500:
         error(errors, f"{skill_md}: exceeds 500-line progressive-disclosure limit")
-    validate_links(skill_md, text, errors)
+    linked = validate_links(skill_md, text, errors)
 
-    refs = list((skill_dir / "references").glob("*.md"))
+    refs_dir = skill_dir / "references"
+    refs = list(refs_dir.glob("*.md")) if refs_dir.exists() else []
     if not refs:
         error(errors, f"{name}: references directory is empty")
     for ref in refs:
@@ -86,6 +102,13 @@ def validate_skill(skill_dir: Path, errors: list[str]) -> None:
         validate_links(ref, ref_text, errors)
         if "TODO" in ref_text:
             error(errors, f"{ref}: unresolved TODO")
+        if ref.resolve() not in linked:
+            error(errors, f"{ref}: reference is not linked directly from SKILL.md")
+
+    forbidden = {"README.md", "CHANGELOG.md", "INSTALLATION_GUIDE.md", "QUICK_REFERENCE.md"}
+    clutter = sorted(path.name for path in skill_dir.iterdir() if path.name in forbidden)
+    if clutter:
+        error(errors, f"{name}: skill contains project-level documentation {clutter}")
 
     if not openai_yaml.exists():
         error(errors, f"{name}: missing agents/openai.yaml")
@@ -98,8 +121,9 @@ def validate_skill(skill_dir: Path, errors: list[str]) -> None:
             error(errors, f"{openai_yaml}: default_prompt must mention ${name}")
 
 
-def validate_evals(errors: list[str]) -> int:
+def validate_evals(manifest: dict, errors: list[str]) -> int:
     path = ROOT / "evals" / "cases.jsonl"
+    schema_path = ROOT / "evals" / "response.schema.json"
     if not path.exists():
         error(errors, "missing evals/cases.jsonl")
         return 0
@@ -133,41 +157,111 @@ def validate_evals(errors: list[str]) -> int:
         if case_id in ids:
             error(errors, f"{path}:{lineno}: duplicate id {case_id!r}")
         ids.add(case_id)
-        if case.get("expected_mode") not in {"DIRECT", "INSPECT", "CLARIFY", "DISCOVER", "GATE"}:
+        if case.get("expected_mode") not in set(manifest["modes"]):
             error(errors, f"{path}:{lineno}: invalid expected_mode")
-        unknown = set(case.get("expected_skills", [])) - EXPECTED
+        unknown = set(case.get("expected_skills", [])) - set(manifest["skills"])
         if unknown:
             error(errors, f"{path}:{lineno}: unknown expected skills {sorted(unknown)}")
-    if count < 24:
-        error(errors, f"{path}: expected at least 24 behavior cases, found {count}")
+    if count < 36:
+        error(errors, f"{path}: expected at least 36 behavior cases, found {count}")
+
+    if not schema_path.exists():
+        error(errors, "missing evals/response.schema.json")
+    else:
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            mode_enum = set(schema["properties"]["mode"]["enum"])
+            skill_enum = set(schema["properties"]["invoked_skills"]["items"]["enum"])
+            if mode_enum != set(manifest["modes"]):
+                error(errors, f"{schema_path}: mode enum is out of sync with manifest")
+            if skill_enum != set(manifest["skills"]):
+                error(errors, f"{schema_path}: skill enum is out of sync with manifest")
+        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            error(errors, f"{schema_path}: invalid response schema: {exc}")
     return count
 
 
-def main() -> int:
-    errors: list[str] = []
-    actual = {p.name for p in SKILLS.iterdir() if p.is_dir()} if SKILLS.exists() else set()
-    if actual != EXPECTED:
-        error(errors, f"skill set mismatch: missing={sorted(EXPECTED-actual)} extra={sorted(actual-EXPECTED)}")
-    for name in sorted(EXPECTED & actual):
-        validate_skill(SKILLS / name, errors)
-    eval_count = validate_evals(errors)
+def validate_python(errors: list[str]) -> int:
+    paths = list((ROOT / "scripts").glob("*.py")) + list((ROOT / "tests").glob("test_*.py"))
+    for path in paths:
+        try:
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except SyntaxError as exc:
+            error(errors, f"{path}: Python syntax error: {exc}")
+    return len(paths)
 
-    policy_text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in SKILLS.rglob("*.md")
-    ).lower()
+
+def validate_project_files(errors: list[str]) -> None:
+    required = [
+        ROOT / "README.md",
+        ROOT / "README.zh-CN.md",
+        ROOT / "CHANGELOG.md",
+        ROOT / "CONTRIBUTING.md",
+        ROOT / "SECURITY.md",
+        ROOT / "LICENSE",
+        ROOT / ".github" / "workflows" / "ci.yml",
+        ROOT / ".github" / "ISSUE_TEMPLATE" / "behavior-report.yml",
+    ]
+    for path in required:
+        if not path.exists():
+            error(errors, f"missing required project file: {path}")
+    docs = [ROOT / "README.md", ROOT / "README.zh-CN.md", ROOT / "CONTRIBUTING.md"]
+    docs += list((ROOT / "docs").glob("*.md")) + list((ROOT / "evals").glob("*.md"))
+    for path in docs:
+        if path.exists():
+            validate_links(path, path.read_text(encoding="utf-8"), errors)
+
+    workflow = ROOT / ".github" / "workflows" / "ci.yml"
+    if workflow.exists():
+        text = workflow.read_text(encoding="utf-8")
+        for action in ("actions/checkout", "actions/setup-python"):
+            if not re.search(rf"{re.escape(action)}@[0-9a-f]{{40}}", text):
+                error(errors, f"{workflow}: {action} must be pinned to a full commit SHA")
+
+
+def run_validation() -> tuple[list[str], dict]:
+    errors: list[str] = []
+    try:
+        manifest = load_manifest()
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return [f"{MANIFEST}: {exc}"], {"skills": 0, "eval_cases": 0, "python_files": 0}
+    validate_manifest(manifest, errors)
+    validate_project_files(errors)
+    expected = set(manifest["skills"])
+    actual = {p.name for p in SKILLS.iterdir() if p.is_dir()} if SKILLS.exists() else set()
+    if actual != expected:
+        error(errors, f"skill set mismatch: missing={sorted(expected-actual)} extra={sorted(actual-expected)}")
+    for name in sorted(expected & actual):
+        validate_skill(SKILLS / name, errors)
+    eval_count = validate_evals(manifest, errors)
+    python_count = validate_python(errors)
+
+    policy_text = "\n".join(path.read_text(encoding="utf-8") for path in SKILLS.rglob("*.md")).lower()
     for phrase in ("explicit approval", "discovery is not", "do not install"):
         if phrase not in policy_text:
             error(errors, f"pack is missing required approval concept: {phrase!r}")
+    return errors, {"skills": len(expected), "eval_cases": eval_count, "python_files": python_count}
 
-    if errors:
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="emit a machine-readable validation report")
+    args = parser.parse_args()
+    errors, counts = run_validation()
+    report = {"passed": not errors, **counts, "errors": errors}
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    elif errors:
         print("Agent Preflight validation failed:")
         for item in errors:
             print(f"- {item}")
-        return 1
-
-    print(f"Agent Preflight validation passed: {len(EXPECTED)} skills, {eval_count} eval cases")
-    return 0
+    else:
+        print(
+            "Agent Preflight validation passed: "
+            f"{counts['skills']} skills, {counts['eval_cases']} eval cases, "
+            f"{counts['python_files']} Python files"
+        )
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

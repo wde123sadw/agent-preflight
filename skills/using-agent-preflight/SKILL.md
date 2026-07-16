@@ -35,7 +35,7 @@ Honor an explicit user profile (`fast`, `balanced`, `deep`, or `critical`) using
 6. Invoke `$tool-discovery` only for a named, proven capability gap.
 7. Invoke `$tool-review-gate` before installing, enabling, authenticating, or sending data to a new capability.
 8. Invoke `$context-budget` when inputs or tool outputs are likely to exceed roughly 2,000 tokens, contain heavy repetition, or accumulate across a long task.
-9. Produce a compact execution contract for non-trivial work.
+9. Read [execution-contract.md](references/execution-contract.md) and produce a compact execution contract for non-trivial work.
 10. Execute and verify against that contract.
 
 ## Respect approval boundaries
@@ -67,12 +67,14 @@ For `CLARIFY`, `DISCOVER`, or `GATE`, keep the handoff compact:
 ```text
 PREFLIGHT
 Mode: CLARIFY | DISCOVER | GATE
+Profile: fast | balanced | deep | critical
 Outcome: <what success means>
 Known: <verified facts>
 Unknowns: <decisions that still matter>
 Capabilities: <available / missing>
 Assumptions: <defaults the agent may use>
 Approval gates: <actions requiring confirmation>
+Re-entry triggers: <new evidence that would pause or reroute execution>
 Next: <question, discovery, review, or execution>
 ```
 
@@ -89,4 +91,4 @@ Start execution when all are true:
 - high-risk actions have explicit approval;
 - the context strategy preserves the evidence needed for verification.
 
-Re-enter preflight only when new evidence changes scope, exposes a capability gap, or introduces a new approval boundary.
+Re-enter preflight only when new evidence changes scope, invalidates an assumption, exposes a capability gap, threatens acceptance, or introduces a new approval boundary. Do not restart the entire interview: preserve settled decisions and ask only about the new branch.

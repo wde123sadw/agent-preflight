@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "agent-preflight",
+  "version": "0.2.0",
+  "minimum_python": "3.8",
+  "skills": [
+    "using-agent-preflight",
+    "intent-preflight",
+    "capability-gap-analysis",
+    "tool-discovery",
+    "tool-review-gate",
+    "context-budget"
+  ],
+  "modes": [
+    "DIRECT",
+    "INSPECT",
+    "CLARIFY",
+    "DISCOVER",
+    "GATE"
+  ],
+  "profiles": [
+    "fast",
+    "balanced",
+    "deep",
+    "critical"
+  ]
+}

@@ -1,37 +1,35 @@
 param(
     [string]$Target,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$DryRun,
+    [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
+$installer = Join-Path $PSScriptRoot "install.py"
+$arguments = @($installer)
 
-if (-not $Target) {
-    $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
-    $Target = Join-Path $codexHome "skills"
+if ($Target) {
+    $arguments += @("--target", $Target)
+}
+if ($Force) {
+    $arguments += "--force"
+}
+if ($DryRun) {
+    $arguments += "--dry-run"
+}
+if ($Json) {
+    $arguments += "--json"
 }
 
-$sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\skills")).Path
-$targetRoot = [System.IO.Path]::GetFullPath($Target)
-New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
-$timestamp = Get-Date -Format "yyyyMMddHHmmss"
-
-foreach ($skill in Get-ChildItem -LiteralPath $sourceRoot -Directory) {
-    $destination = [System.IO.Path]::GetFullPath((Join-Path $targetRoot $skill.Name))
-    if (-not $destination.StartsWith($targetRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing destination outside target root: $destination"
-    }
-
-    if (Test-Path -LiteralPath $destination) {
-        if (-not $Force) {
-            throw "Skill already exists: $destination. Re-run with -Force to back it up and replace it."
-        }
-        $backup = "$destination.bak.$timestamp"
-        Move-Item -LiteralPath $destination -Destination $backup
-        Write-Host "Backed up $destination to $backup"
-    }
-
-    Copy-Item -LiteralPath $skill.FullName -Destination $destination -Recurse
-    Write-Host "Installed $($skill.Name) -> $destination"
+if (Get-Command py -ErrorAction SilentlyContinue) {
+    & py -3 @arguments
+} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+    & python @arguments
+} else {
+    throw "Python 3.8 or newer is required."
 }
 
-Write-Host "Agent Preflight installation complete. Restart or reload the agent if required."
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}

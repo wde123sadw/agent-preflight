@@ -1,0 +1,63 @@
+name: Behavior report
+description: Report unnecessary questions, missed decisions, wrong routing, unsafe actions, or context loss.
+title: "[Behavior]: "
+labels: [behavior]
+body:
+  - type: checkboxes
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private data, and confidential project content.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Agent Preflight version
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Agent surface
+      options:
+        - Codex
+        - Claude Code
+        - Cursor
+        - Other skill-compatible agent
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Minimal user request
+      description: Provide the smallest sanitized prompt that still reproduces the behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Include the expected mode, questions, skills, or approval boundary when known.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and trace
+      description: Include the natural response and PREFLIGHT_EVAL_JSON line when available.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant environment evidence
+      description: List installed skills, available tools, or inspected files only when they affect reproduction.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Why this matters
+      description: Describe rework, risk, wasted questions, missed capability, or token cost.
+    validations:
+      required: true

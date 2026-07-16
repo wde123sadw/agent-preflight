@@ -2,6 +2,10 @@
 
 **Clarify the task. Find the capability. Approve before action.**
 
+[![CI](https://github.com/wde123sadw/agent-preflight/actions/workflows/ci.yml/badge.svg)](https://github.com/wde123sadw/agent-preflight/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wde123sadw/agent-preflight)](https://github.com/wde123sadw/agent-preflight/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Agent Preflight is an adaptive skill pack for AI agents. It helps an agent decide when to ask questions, when to inspect first, when a task has a real capability gap, where to discover tools, what the user must review, and how to control context cost without losing evidence.
 
 It is designed to improve outcomes without turning every request into an interview.
@@ -18,6 +22,15 @@ Agent failures often begin before execution:
 - assumptions were never converted into acceptance criteria.
 
 Agent Preflight addresses those failures as a small, composable workflow.
+
+## What's new in v0.2.0
+
+- **Uncertainty routing:** classify unknowns as discover, assume, ask, or gate before interrupting the user.
+- **Execution contracts:** make autonomy, acceptance evidence, checkpoints, and re-entry triggers explicit.
+- **Scorable forward evals:** export prompts, ingest machine-readable traces, and enforce release thresholds.
+- **Transactional installation:** preflight collisions, back up forced replacements, roll back failures, and verify every copied file.
+- **Installation doctor:** detect missing, changed, and unexpected files in an installed pack.
+- **Cross-platform CI:** validate the pack and run unit tests on Windows and Linux with Python 3.8 and 3.12.
 
 ## How it behaves
 
@@ -45,6 +58,18 @@ Read-only inspection and candidate discovery may proceed when in scope. Installi
 
 ## Install
 
+Preview the complete install plan without writing:
+
+```bash
+python scripts/install.py --dry-run
+```
+
+Install to the default Codex skill directory:
+
+```bash
+python scripts/install.py
+```
+
 Codex on Windows:
 
 ```powershell
@@ -65,14 +90,32 @@ Unix-like systems:
 
 The installer copies individual folders from `skills/`. It refuses to overwrite an existing skill unless the explicit force option is used; forced replacements are backed up first.
 
+After installation, verify exact file integrity:
+
+```bash
+python scripts/doctor.py
+```
+
+Use `--target <skill-root>` with either command for another compatible agent. Run `python scripts/install.py --help` for dry-run, force, target, and JSON output options.
+
 ## Validate
 
 ```bash
 python scripts/validate_pack.py
 python scripts/run_evals.py --check
+python -m unittest discover -s tests -v
 ```
 
-The first command validates skill structure, metadata, references, and approval language. The second validates the behavior-case corpus and prints coverage by mode, risk, and locale.
+The first command validates skill structure, metadata, references, scripts, protocol synchronization, and approval language. The second validates the behavior corpus and prints coverage.
+
+To run a real forward evaluation, export prompts, execute them with the agent under test, and score its JSONL responses:
+
+```bash
+python scripts/run_evals.py --export eval-results/prompts.jsonl
+python scripts/run_evals.py --score eval-results/responses.jsonl --report eval-results/report.json
+```
+
+The response protocol is defined in [`evals/response.schema.json`](evals/response.schema.json), with integration examples in [`docs/evaluation.md`](docs/evaluation.md). A release candidate must have no hard failures, average at least 10/12, and select the exact mode in at least 90% of cases. Automated trace scoring is a routing and safety gate; use [`evals/rubric.md`](evals/rubric.md) for qualitative forward review.
 
 ## Design principles
 
@@ -88,10 +131,12 @@ The first command validates skill structure, metadata, references, and approval 
 
 ```text
 agent-preflight/
-├── skills/       # Installable skills
-├── evals/        # Behavior cases and rubric
-├── scripts/      # Validation, eval, and install utilities
-└── docs/         # Architecture and policy documentation
+├── agent-preflight.json  # Versioned pack manifest
+├── skills/               # Installable skills
+├── evals/                # Behavior cases, trace schema, and rubric
+├── scripts/              # Installer, doctor, validation, and eval utilities
+├── tests/                # Cross-platform unit tests
+└── docs/                 # Architecture and policy documentation
 ```
 
 ## Inspiration
@@ -100,7 +145,7 @@ The lifecycle routing and verification discipline are inspired by [addyosmani/ag
 
 ## Status
 
-`v0.1.0` — initial development release. The policy and evaluation corpus are expected to evolve with real-world agent traces.
+`v0.2.0` — evaluation and reliability release. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## License
 

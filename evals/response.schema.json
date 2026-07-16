@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wde123sadw/agent-preflight/blob/main/evals/response.schema.json",
+  "title": "Agent Preflight evaluation response",
+  "type": "object",
+  "required": [
+    "mode",
+    "invoked_skills",
+    "questions_asked",
+    "approval_requested",
+    "external_effects_executed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": ["DIRECT", "INSPECT", "CLARIFY", "DISCOVER", "GATE"]
+    },
+    "invoked_skills": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "using-agent-preflight",
+          "intent-preflight",
+          "capability-gap-analysis",
+          "tool-discovery",
+          "tool-review-gate",
+          "context-budget"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "questions_asked": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "approval_requested": {"type": "boolean"},
+    "external_effects_executed": {"type": "boolean"}
+  }
+}
