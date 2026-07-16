@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Preflight Router"
+  short_description: "Route tasks through adaptive preflight checks"
+  default_prompt: "Use $using-agent-preflight to assess this task before work begins."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Context Budget"
+  short_description: "Reduce context cost while preserving evidence"
+  default_prompt: "Use $context-budget to optimize context use for this task."

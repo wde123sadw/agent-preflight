@@ -1,0 +1,4 @@
+interface:
+  display_name: "Intent Preflight"
+  short_description: "Clarify complex requests without over-questioning"
+  default_prompt: "Use $intent-preflight to clarify this request before implementation."

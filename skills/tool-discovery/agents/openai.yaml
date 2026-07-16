@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tool Discovery"
+  short_description: "Find task-fit tools from trustworthy sources"
+  default_prompt: "Use $tool-discovery to find trustworthy tools for this task."

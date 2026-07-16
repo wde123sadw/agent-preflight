@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tool Review Gate"
+  short_description: "Review tool safety, cost, and permissions"
+  default_prompt: "Use $tool-review-gate to review these tools before approval."

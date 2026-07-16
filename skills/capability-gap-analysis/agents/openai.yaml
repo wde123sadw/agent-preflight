@@ -1,0 +1,4 @@
+interface:
+  display_name: "Capability Gap Analysis"
+  short_description: "Check existing capabilities before seeking tools"
+  default_prompt: "Use $capability-gap-analysis to identify what this task is missing."
